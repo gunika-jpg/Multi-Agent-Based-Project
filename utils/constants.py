@@ -26,3 +26,5 @@ MAX_PER_SOURCE_IN_TOP5 = 3
 # A price more than this many standard deviations from the mean is flagged
 # as a potential outlier (scraping error, wrong product match, etc.)
 OUTLIER_STD_THRESHOLD = 2.0
+AMAZON_DOMAIN = "amazon.in"
+MAX_PRODUCTS_PER_SOURCE = 10

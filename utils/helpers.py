@@ -3,8 +3,27 @@ Comparison and Recommendation agents.
 """
 
 import statistics
+import re 
+def normalize_price(price) -> float:
+    """Strip currency symbols/commas from a raw scraped price and return a float."""
+    if price:
+        cleaned = re.sub(r"[^\d.]", "", str(price))
+        return float(cleaned) if cleaned else 0.0
+    return 0.0
 
 
+def normalize_rating(rating) -> float:
+    """Parse a raw scraped rating to a clamped 0-5 float."""
+    if not rating or rating == "None":
+        return 0.0
+    try:
+        match = re.search(r"\d+(\.\d+)?", str(rating))
+        if match:
+            return max(0.0, min(5.0, float(match.group())))
+        return 0.0
+    except (ValueError, TypeError):
+        return 0.0
+    
 def calculate_value_score(price: float, rating: float, max_price: float) -> float:
     """Score 0-100 based on price (lower is better) and rating (higher is better)."""
     if price <= 0 or rating <= 0:
