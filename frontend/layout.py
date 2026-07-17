@@ -28,7 +28,7 @@ def render_sidebar_filters() -> Tuple[str, float, str, bool]:
         budget = st.slider(
             "Budget limit",
             min_value=5000,
-            max_value=100000,
+            max_value=1000000,
             value=int(current_budget),
             step=5000,
             label_visibility="collapsed"
