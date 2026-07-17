@@ -6,7 +6,7 @@ load_dotenv()
 class Settings(BaseSettings):
     SERPAPI_KEY: str = ''
     FIRECRAWL_API_KEY: str = ''
-    GOOGLE_API_KEY: str = ''
+    GROQ_API_KEY: str = ""
     CACHE_TTL: int = 900
     MAX_PRODUCTS_PER_SOURCE: int = 10
     LOG_LEVEL: str = 'INFO'
