@@ -14,7 +14,7 @@ from Agents.recommendation_agent import recommendation_agent
 from Services.amazon_service import AmazonService
 from frontend.home import render_home_page
 
-# 1. Page Configuration (Must be first Streamlit command)
+# 1. Page Configuration (overall look and behaviour of websiite)
 st.set_page_config(
     page_title="ShopWise - AI Compare",
     page_icon="🛍️",

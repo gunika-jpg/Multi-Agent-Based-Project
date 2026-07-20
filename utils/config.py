@@ -18,3 +18,4 @@ _settings = Settings()
 
 def get_settings() -> Settings:
     return _settings
+settings = _settings

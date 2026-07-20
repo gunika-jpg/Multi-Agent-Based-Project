@@ -13,13 +13,6 @@ def inject_custom_css():
     }
 
     /* Hide Streamlit default header */
-header[data-testid="stHeader"] {
-    display: none !important;
-}
-
-div[data-testid="stToolbar"] {
-    display: none !important;
-}
 
 #MainMenu {
     visibility: hidden !important;
@@ -88,7 +81,7 @@ div[data-testid="stToolbar"] {
 
     /* Left Sidebar Filter Container styling */
     [data-testid="stSidebar"] {
-        background-color: #ffffff !important;
+        background-color: black !important;
         border-right: 1px solid #f1f5f9 !important;
         padding-top: 2rem;
     }
@@ -419,7 +412,7 @@ div[data-testid="stToolbar"] {
         border-radius: 24px;
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.015);
         max-width: 650px;
-        margin: 4rem auto;
+        margin: 1rem auto;
         animation: fadeIn 0.8s ease-out;
     }
     
@@ -458,7 +451,7 @@ div[data-testid="stToolbar"] {
         color: #2563EB;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 2px;home
+        letter-spacing: 2px;
         margin-bottom: 1.5rem;
     }
     

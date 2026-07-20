@@ -1,3 +1,24 @@
+<<<<<<< HEAD
+=======
+"""
+LangGraph Workflow — Member 1
+================================
+THIS IS THE MAIN ORCHESTRATION FILE. It wires:
+
+    Search Agent -> Comparison Agent -> Recommendation Agent -> Response Agent
+
+using the real agent functions already built by the team:
+    - Agents.search_agent.search_agent_node        (this file's sibling, Member 1)
+    - Agents.comparison_agent.comparison_agent       (Member 4)
+    - Agents.recommendation_agent.recommendation_agent (Member 4)
+    - Agents.response_agent.response_agent_node      (this file's sibling, Member 1)
+
+Smoke-test the full pipeline directly:
+    python -m Agents.workflow
+
+Member 5 (Streamlit) calls `run_pipeline(...)` from app.py.
+"""
+>>>>>>> 87781e54869ecb82d7616c3ef400468d33171105
 from langgraph.graph import StateGraph, START, END
 
 from Agents.graph_state import ProductComparisonState
