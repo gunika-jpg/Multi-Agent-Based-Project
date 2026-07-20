@@ -8,11 +8,18 @@ from frontend.components import (
     render_recommendation_section
 )
 from frontend.layout import render_sidebar_filters
-from frontend.helpers import generate_mock_products
-from Agents.comparison_agent import comparison_agent
-from Agents.recommendation_agent import recommendation_agent
-from Services.amazon_service import AmazonService
+# CHANGE 1: Removed obsolete imports:
+#   - Agents.comparison_agent.comparison_agent
+#   - Agents.recommendation_agent.recommendation_agent
+#   - Services.amazon_service.AmazonService
+#   - frontend.helpers.generate_mock_products
+# These are no longer called directly from app.py — the new LangGraph
+# pipeline (Agents/workflow.py) now owns search, fallback-mock-generation,
+# comparison, recommendation, and response generation internally.
 from frontend.home import render_home_page
+
+# CHANGE 2: Import the single orchestration entry point for the new architecture.
+from Agents.workflow import run_pipeline
 
 # 1. Page Configuration (overall look and behaviour of websiite)
 st.set_page_config(
@@ -63,56 +70,82 @@ if "has_searched" not in st.session_state:
     st.session_state.has_searched = False
 if "errors" not in st.session_state:
     st.session_state.errors = []
+# CHANGE 3: New session state key to hold the Response Agent's markdown
+# narrative (final_response), which the old pipeline never produced.
+# We store it for potential future use, but we do NOT render it anywhere
+# new, since the original UI never displayed a "final_response" block —
+# per the "preserve existing UI exactly" requirement.
+if "final_response" not in st.session_state:
+    st.session_state.final_response = ""
 
 # 5. Render Sidebar Filters (Native sidebar widgets)
 query, budget, brand_filter, search_clicked = render_sidebar_filters()
 
-def run_agents(products, budget_val, brand_filter_val, progress_placeholder):
-    """Run Comparison and Recommendation Agents sequentially with progress updates."""
-    # Reset status for agents
+
+def run_agents(query_val, budget_val, brand_filter_val, progress_placeholder):
+    """
+    CHANGE 4: Rewritten from the ground up.
+
+    OLD BEHAVIOR: took a pre-fetched `products` list and ran only the
+    comparison + recommendation agents against it (fast "filter-only" path).
+
+    NEW BEHAVIOR: run_pipeline(query, budget, brand_filter, weights) is the
+    single entry point into the LangGraph graph (Search -> Comparison ->
+    Recommendation -> Response). It has no parameter for reusing
+    previously-fetched products, so every call — including filter-only
+    changes — now re-runs the full graph, including a fresh search.
+
+    This is a deliberate, flagged behavior change (see explanation above
+    the code): there is currently no cheaper "filter-only" path available
+    without modifying workflow.py / graph_state.py, which was out of scope.
+
+    We keep the same progress-tracker visuals as before, but since
+    run_pipeline() is a single synchronous call with no intermediate
+    callback, we can no longer animate each step turning "running" one at
+    a time. We instead: mark all remaining steps "running" up front, render
+    that, invoke the pipeline once, then adopt the real `agent_status`
+    dict returned by the graph.
+    """
     st.session_state.agent_status["comparison"] = "running"
-    st.session_state.agent_status["recommendation"] = "pending"
-    st.session_state.agent_status["response"] = "pending"
-    
-    progress_placeholder.empty()
-    with progress_placeholder:
-        render_progress_tracker(st.session_state.agent_status)
-    time.sleep(0.4) # Aesthetic animation delay
-    
-    # Assemble Comparison Agent State
-    state = {
-        "products": [p.copy() for p in products],
-        "brand_filter": brand_filter_val,
-        "budget": budget_val,
-        "comparison_data": {},
-        "recommendations": [],
-        "agent_status": st.session_state.agent_status,
-        "errors": []
-    }
-    
-    # Execute Comparison Agent
-    comp_out = comparison_agent(state)
-    state.update(comp_out)
-    
-    st.session_state.agent_status["comparison"] = "completed"
     st.session_state.agent_status["recommendation"] = "running"
-    
+    st.session_state.agent_status["response"] = "running"
+
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
-    time.sleep(0.4) # Aesthetic animation delay
-    
-    # Execute Recommendation Agent
-    rec_out = recommendation_agent(state)
-    state.update(rec_out)
-    
-    st.session_state.agent_status["recommendation"] = "completed"
-    st.session_state.agent_status["response"] = "completed"
-    
-    # Store results in Session State
-    st.session_state.comparison_data = state.get("comparison_data", {})
-    st.session_state.recommendations = state.get("recommendations", [])
-    st.session_state.errors = state.get("errors", [])
+    time.sleep(0.4)  # Aesthetic animation delay (preserved from original)
+
+    # CHANGE 5: Single call replaces the old manual
+    # comparison_agent(state) -> recommendation_agent(state) sequence.
+    result = run_pipeline(
+        query=query_val,
+        budget=budget_val,
+        brand_filter=brand_filter_val,
+        weights=None,
+    )
+
+    # CHANGE 6: Map the workflow's returned state dict onto the same
+    # session_state keys the rest of app.py already expects, so the
+    # downstream rendering code (sections 9-11) needs zero changes.
+    st.session_state.products = result.get("products", [])
+    st.session_state.comparison_data = result.get("comparison_data", {})
+    st.session_state.recommendations = result.get("recommendations", [])
+    st.session_state.errors = result.get("errors", [])
+    st.session_state.final_response = result.get("final_response", "")
+
+    # Adopt the graph's own agent_status if provided, otherwise mark all
+    # steps completed manually as a safe fallback.
+    returned_status = result.get("agent_status")
+    if returned_status:
+        st.session_state.agent_status = returned_status
+    else:
+        st.session_state.agent_status = {
+            "search": "completed",
+            "comparison": "completed",
+            "recommendation": "completed",
+            "response": "completed",
+        }
+
 
 # 6. Setup main content headers using Streamlit native colored markdown formatting
 if st.session_state.has_searched:
@@ -148,44 +181,29 @@ if trigger_search:
     st.session_state.last_active_brand = st.session_state.active_brand
     st.session_state.has_searched = True
     st.session_state.errors = []
-    
+
     st.session_state.agent_status = {
         "search": "running",
         "comparison": "pending",
         "recommendation": "pending",
         "response": "pending"
     }
-    
+
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
-        
-    # Search via AmazonService
-    service = AmazonService()
-    try:
-        raw_products = service.search(query)
-    except Exception as e:
-        raw_products = []
-        st.session_state.errors.append(f"SerpAPI search failed: {e}")
-        
-    # Fallback to smart mockup products if SerpAPI returned nothing (e.g. key missing)
-    if not raw_products:
-        raw_products = generate_mock_products(query)
-        
-    # Normalize product objects to dicts
-    products = []
-    for p in raw_products:
-        if hasattr(p, "model_dump"):
-            products.append(p.model_dump())
-        elif isinstance(p, dict):
-            products.append(p)
-            
-    st.session_state.products = products
+
+    # CHANGE 7: The old manual AmazonService() call + mock-fallback logic
+    # + product normalization loop is removed entirely. The Search Agent
+    # node inside the LangGraph pipeline (Agents/search_agent.py) already
+    # performs the Amazon/Flipkart/Firecrawl calls, the mock fallback, and
+    # dict normalization internally, and writes state["products"].
+    # We simply delegate everything to run_agents(), which now calls
+    # run_pipeline() and populates st.session_state from its result.
+    run_agents(query, budget, brand_filter, progress_placeholder)
+
     st.session_state.agent_status["search"] = "completed"
-    
-    # Run comparison and recommendation agents
-    run_agents(products, budget, brand_filter, progress_placeholder)
-    
+
     # Finalize progress cards
     progress_placeholder.empty()
     with progress_placeholder:
@@ -195,10 +213,13 @@ elif trigger_filter:
     # Update filters in state
     st.session_state.budget_limit = budget
     st.session_state.last_active_brand = st.session_state.active_brand
-    
-    # Run agents using existing cached products (fast response)
-    run_agents(st.session_state.products, budget, brand_filter, progress_placeholder)
-    
+
+    # CHANGE 8: Filter-only path now also calls run_agents(), which invokes
+    # run_pipeline() with the *existing* query but the new budget/brand.
+    # See the ambiguity note above run_agents(): this now re-runs search
+    # too, since run_pipeline() has no "reuse cached products" option.
+    run_agents(st.session_state.search_query, budget, brand_filter, progress_placeholder)
+
     # Refresh progress cards
     progress_placeholder.empty()
     with progress_placeholder:
@@ -237,7 +258,7 @@ st.markdown('<hr style="margin-top:-0.5rem; margin-bottom:1.5rem; border:0; bord
 if matches_count > 0:
     best_value_prod = comparison_data.get("best_value")
     best_value_url = best_value_prod.get("url") if best_value_prod else None
-    
+
     # Render row-by-row
     for i in range(0, len(display_products), 3):
         row_products = display_products[i:i+3]
