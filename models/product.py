@@ -10,3 +10,5 @@ class Product(BaseModel):
     url: str
     image_url: str = ""
     
+    value_score: float = 0.0
+    recommendation_score: float = 0.0
