@@ -25,8 +25,9 @@ def render_sidebar_filters() -> Tuple[str, float, str, bool]:
         st.markdown("**Product Search**")
 
         query = st.text_input(
-            "",
+            "Product Search",
             placeholder="MacBook Air M4",
+            label_visibility="collapsed",
         )
 
         st.markdown("<br>", unsafe_allow_html=True)
@@ -38,11 +39,12 @@ def render_sidebar_filters() -> Tuple[str, float, str, bool]:
         st.markdown(f"**Budget • Up to ₹{current_budget:,}**")
 
         budget = st.slider(
-            "",
+            "Budget",
             min_value=5000,
             max_value=1000000,
             value=int(current_budget),
             step=5000,
+            label_visibility="collapsed",
         )
 
         st.caption("₹5,000                                    ₹10,00,000")
