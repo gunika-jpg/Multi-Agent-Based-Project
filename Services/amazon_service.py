@@ -1,7 +1,7 @@
 import requests
 
 from models.product import Product
-from utils.config import Settings
+from utils.config import get_settings
 
 
 class AmazonService:
@@ -14,7 +14,7 @@ class AmazonService:
             "engine": "amazon",
             "k": query,
             "amazon_domain": "amazon.in",
-            "api_key": Settings().SERPAPI_KEY
+            "api_key": get_settings().SERPAPI_KEY
         }
 
         try:
@@ -26,12 +26,10 @@ class AmazonService:
 
             for item in data.get("organic_results", [])[:10]:
 
-                # Get price
                 price = 0.0
 
                 if isinstance(item.get("price"), dict):
                     price = float(item["price"].get("value", 0))
-
                 else:
                     try:
                         price = float(
@@ -52,9 +50,6 @@ class AmazonService:
                     image_url=item.get("thumbnail", ""),
                     url=item.get("link", ""),
                     source="Amazon"
-                    # brand and specifications are omitted.
-                    # Product model defaults will be used because
-                    # SerpAPI's Amazon endpoint does not reliably provide them.
                 )
 
                 products.append(product)
