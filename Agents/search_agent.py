@@ -39,6 +39,7 @@ def search_agent_node(state):
     try:
         products.extend(flipkart.search(query))
     except Exception as e:
+        print("Flipkart Error:", e)
         errors.append(f"Flipkart search failed: {e}")
 
     # Other Stores Search
