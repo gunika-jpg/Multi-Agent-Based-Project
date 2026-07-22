@@ -8,13 +8,14 @@ from frontend.components import (
     render_recommendation_section
 )
 from frontend.layout import render_sidebar_filters
-from frontend.helpers import generate_mock_products
-from Agents.comparison_agent import comparison_agent
-from Agents.recommendation_agent import recommendation_agent
-from Services.amazon_service import AmazonService
+
+# welcome page
 from frontend.home import render_home_page
 
-# 1. Page Configuration (overall look and behaviour of websiite)
+# main AI workflow
+from Agents.workflow import run_pipeline
+
+# 1. Page Configuration (overall look and behaviour of website)
 st.set_page_config(
     page_title="ShopWise - AI Compare",
     page_icon="🛍️",
@@ -22,22 +23,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Initialize Session States
+# Track whether the user has entered the app
 if "entered_app" not in st.session_state:
     st.session_state.entered_app = False
 
-# 2. Inject CSS Styles to override native widget styling
+# Apply custom styling
 inject_custom_css()
 
-# Route to Welcome/Home page if not yet entered
+# Show home page before entering the app
 if not st.session_state.entered_app:
     render_home_page()
     st.stop()
 
-# 3. Render Top Navigation Bar (Native Streamlit columns)
+# Display the app header
 render_header()
 
-# 4. Initialize Session States
+# Initialize session state variables
 if "products" not in st.session_state:
     st.session_state.products = []
 if "comparison_data" not in st.session_state:
@@ -64,57 +65,57 @@ if "has_searched" not in st.session_state:
 if "errors" not in st.session_state:
     st.session_state.errors = []
 
-# 5. Render Sidebar Filters (Native sidebar widgets)
+# Store the final AI response
+if "final_response" not in st.session_state:
+    st.session_state.final_response = ""
+
+# Render sidebar filters
 query, budget, brand_filter, search_clicked = render_sidebar_filters()
 
-def run_agents(products, budget_val, brand_filter_val, progress_placeholder):
-    """Run Comparison and Recommendation Agents sequentially with progress updates."""
-    # Reset status for agents
+# Run the AI workflow
+def run_agents(query_val, budget_val, brand_filter_val, progress_placeholder):
+    
+    # Update agent status
     st.session_state.agent_status["comparison"] = "running"
-    st.session_state.agent_status["recommendation"] = "pending"
-    st.session_state.agent_status["response"] = "pending"
-    
-    progress_placeholder.empty()
-    with progress_placeholder:
-        render_progress_tracker(st.session_state.agent_status)
-    time.sleep(0.4) # Aesthetic animation delay
-    
-    # Assemble Comparison Agent State
-    state = {
-        "products": [p.copy() for p in products],
-        "brand_filter": brand_filter_val,
-        "budget": budget_val,
-        "comparison_data": {},
-        "recommendations": [],
-        "agent_status": st.session_state.agent_status,
-        "errors": []
-    }
-    
-    # Execute Comparison Agent
-    comp_out = comparison_agent(state)
-    state.update(comp_out)
-    
-    st.session_state.agent_status["comparison"] = "completed"
     st.session_state.agent_status["recommendation"] = "running"
+    st.session_state.agent_status["response"] = "running"
+
     
+    # Display progress tracker
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
-    time.sleep(0.4) # Aesthetic animation delay
-    
-    # Execute Recommendation Agent
-    rec_out = recommendation_agent(state)
-    state.update(rec_out)
-    
-    st.session_state.agent_status["recommendation"] = "completed"
-    st.session_state.agent_status["response"] = "completed"
-    
-    # Store results in Session State
-    st.session_state.comparison_data = state.get("comparison_data", {})
-    st.session_state.recommendations = state.get("recommendations", [])
-    st.session_state.errors = state.get("errors", [])
+    time.sleep(0.4)  
 
-# 6. Setup main content headers using Streamlit native colored markdown formatting
+    # Execute the AI pipeline
+    result = run_pipeline(
+        query=query_val,
+        budget=budget_val,
+        brand_filter=brand_filter_val,
+        weights=None,
+    )
+
+    # Store the workflow results
+    st.session_state.products = result.get("products", [])
+    st.session_state.comparison_data = result.get("comparison_data", {})
+    st.session_state.recommendations = result.get("recommendations", [])
+    st.session_state.errors = result.get("errors", [])
+    st.session_state.final_response = result.get("final_response", "")
+
+    # Update agent status
+    returned_status = result.get("agent_status")
+    if returned_status:
+        st.session_state.agent_status = returned_status
+    else:
+        st.session_state.agent_status = {
+            "search": "completed",
+            "comparison": "completed",
+            "recommendation": "completed",
+            "response": "completed",
+        }
+
+
+# Display search results header
 if st.session_state.has_searched:
     st.markdown(f'# Results for :blue["{query}"]')
     st.markdown(
@@ -123,108 +124,92 @@ if st.session_state.has_searched:
     )
 progress_placeholder = st.empty()
 
-# 7. Check Actions and Triggers
+# check user actions
 trigger_search = False
 trigger_filter = False
 
-# Scraper trigger conditions
+# detect a new search
 if search_clicked:
     trigger_search = True
 elif query != st.session_state.search_query and query.strip():
     trigger_search = True
 
-# Agent filter-only trigger conditions
+# detect filter change
 if not trigger_search:
     if budget != st.session_state.budget_limit:
         trigger_filter = True
     elif st.session_state.active_brand != st.session_state.last_active_brand:
         trigger_filter = True
 
-# 8. Execution Pipeline
+# run the search workflow
 if trigger_search:
-    # Reset search and query parameters
+    # save current search details
     st.session_state.search_query = query
     st.session_state.budget_limit = budget
     st.session_state.last_active_brand = st.session_state.active_brand
     st.session_state.has_searched = True
     st.session_state.errors = []
-    
+     
+    # update agent status
     st.session_state.agent_status = {
         "search": "running",
         "comparison": "pending",
         "recommendation": "pending",
         "response": "pending"
     }
-    
+
+    # show progress tracker
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
-        
-    # Search via AmazonService
-    service = AmazonService()
-    try:
-        raw_products = service.search(query)
-    except Exception as e:
-        raw_products = []
-        st.session_state.errors.append(f"SerpAPI search failed: {e}")
-        
-    # Fallback to smart mockup products if SerpAPI returned nothing (e.g. key missing)
-    if not raw_products:
-        raw_products = generate_mock_products(query)
-        
-    # Normalize product objects to dicts
-    products = []
-    for p in raw_products:
-        if hasattr(p, "model_dump"):
-            products.append(p.model_dump())
-        elif isinstance(p, dict):
-            products.append(p)
-            
-    st.session_state.products = products
+        # run AI workflow
+    run_agents(query, budget, brand_filter, progress_placeholder)
     st.session_state.agent_status["search"] = "completed"
-    
-    # Run comparison and recommendation agents
-    run_agents(products, budget, brand_filter, progress_placeholder)
-    
-    # Finalize progress cards
+
+    # update the progress tracker
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
 
 elif trigger_filter:
-    # Update filters in state
+    # save updated filters
     st.session_state.budget_limit = budget
     st.session_state.last_active_brand = st.session_state.active_brand
-    
-    # Run agents using existing cached products (fast response)
-    run_agents(st.session_state.products, budget, brand_filter, progress_placeholder)
-    
-    # Refresh progress cards
+
+    #re run AI workflow
+    run_agents(
+        st.session_state.search_query,
+        budget,
+        brand_filter, 
+        progress_placeholder
+        )
+
+    # update the progress tracker
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
 else:
-    # Just render the existing progress state
+    # display current progress
     progress_placeholder.empty()
     with progress_placeholder:
         render_progress_tracker(st.session_state.agent_status)
 
-# 9. Render the Results section
+# 9. Get results from session state
 comparison_data = st.session_state.comparison_data
 recommendations = st.session_state.recommendations
 
-# Extract brand-filtered products
+# Prepare products for display
 by_source_groups = comparison_data.get("by_source", {})
 display_products = []
 for src_list in by_source_groups.values():
     display_products.extend(src_list)
 
-# Sort display products by value score descending (highest value score first)
-display_products.sort(key=lambda x: x.get("value_score", 0.0), reverse=True)
+# Sort display products by value score (highest value score first)
+display_products.sort(key=lambda x: getattr(x, "value_score", 0.0), reverse=True)
 
 matches_count = len(display_products)
 
-# Matches header row using Streamlit columns
+# display search summary
 st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
 m_col1, m_col2 = st.columns([8, 2])
 with m_col1:
@@ -233,23 +218,23 @@ with m_col2:
     st.markdown("<p style='text-align: right; color: #64748b; font-size: 0.875rem; font-weight: 500; margin-top: 0.25rem;'>Sorted by best value</p>", unsafe_allow_html=True)
 st.markdown('<hr style="margin-top:-0.5rem; margin-bottom:1.5rem; border:0; border-top:1.5px solid #f1f5f9;"/>', unsafe_allow_html=True)
 
-# 10. Display product grid using rows of 3 native Streamlit columns
+# Display product cards
 if matches_count > 0:
     best_value_prod = comparison_data.get("best_value")
-    best_value_url = best_value_prod.get("url") if best_value_prod else None
-    
-    # Render row-by-row
+    best_value_url = best_value_prod.url if best_value_prod else None
+
+    # show products in rows of three
     for i in range(0, len(display_products), 3):
         row_products = display_products[i:i+3]
         cols = st.columns(3)
         for idx, p in enumerate(row_products):
             with cols[idx]:
-                is_bv = (best_value_url and p.get("url") == best_value_url)
+                is_bv = (best_value_url and p.url == best_value_url)
                 render_product_card(p, is_best_value=is_bv)
 else:
     st.info("No matching products found within the specified budget or brand filter. Try widening your criteria!")
 
-# 11. Render the AI Recommendation Section using native layout
+# display AI recommendation
 if recommendations:
     st.markdown("<div style='margin-top:2.5rem;'></div>", unsafe_allow_html=True)
     render_recommendation_section(recommendations[0])

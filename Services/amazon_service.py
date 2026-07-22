@@ -1,7 +1,7 @@
 import requests
 
 from models.product import Product
-from utils.config import Settings
+from utils.config import get_settings
 
 
 class AmazonService:
@@ -20,7 +20,7 @@ class AmazonService:
             "engine": "amazon",
             "k": query.strip(),
             "amazon_domain": "amazon.in",
-            "api_key": Settings().SERPAPI_KEY,
+            "api_key": get_settings().SERPAPI_KEY
         }
 
         try:
@@ -38,13 +38,10 @@ class AmazonService:
 
             for item in data.get("organic_results", [])[:10]:
 
-                # ---------------- Price ----------------
-
                 price = 0.0
 
                 if isinstance(item.get("price"), dict):
-                    price = float(item["price"].get("value", 0) or 0)
-
+                    price = float(item["price"].get("value", 0))
                 else:
                     try:
                         price = float(
@@ -62,7 +59,7 @@ class AmazonService:
                     price=price,
                     rating=float(item.get("rating", 0) or 0),
                     reviews=int(item.get("reviews", 0) or 0),
-                    delivery_info=item.get("delivery", "") or "",
+                    delivery_info=", ".join(item.get("delivery", [])) if isinstance(item.get("delivery"), list) else (item.get("delivery", "") or ""),
                     seller=item.get("seller", "Amazon"),
                     image_url=item.get("thumbnail", ""),
                     url=item.get("link", ""),

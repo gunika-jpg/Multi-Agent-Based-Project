@@ -16,10 +16,10 @@ class GroqService:
 
         for product in products:
             product_details += (
-                f"Name: {product['name']}\n"
-                f"Price: ₹{product['price']}\n"
-                f"Rating: {product['rating']}\n"
-                f"Source: {product['source']}\n\n"
+                f"Name: {product.name}\n"
+                f"Price: ₹{product.price}\n"
+                f"Rating: {product.rating}\n"
+                f"Source: {product.source}\n\n"
             )
 
         prompt = f"""
@@ -64,9 +64,9 @@ Alternative Products:
 
         for product in alternatives:
             prompt += (
-                f"- {product['name']} | ₹{product['price']} | "
-                f"{product['rating']}⭐ | {product['source']}\n"
-            )
+                f"- {product.name} | ₹{product.price} | "
+                f"{product.rating}⭐ | {product.source}\n"
+        )
 
         prompt += """
 

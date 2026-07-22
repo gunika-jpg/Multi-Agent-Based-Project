@@ -70,15 +70,15 @@ def render_progress_tracker(agent_status: Dict[str, str]):
 
 def render_product_card(product: Dict[str, Any], is_best_value: bool = False):
     """Renders a single product card inside a native Streamlit container."""
-    name = product.get("name", "Unknown Product")
-    price = product.get("price", 0.0)
-    rating = product.get("rating", 0.0)
-    reviews = product.get("reviews", 0)
-    source = product.get("source", "Unknown").lower()
-    delivery_info = product.get("delivery_info", "")
-    url = product.get("url", "#")
-    image_url = product.get("image_url", "")
-    
+    name = getattr(product, "name", "Unknown Product")
+    price = getattr(product, "price", 0.0)
+    rating = getattr(product, "rating", 0.0)
+    reviews = getattr(product, "reviews", 0)
+    source = getattr(product, "source", "Unknown").lower()
+    delivery_info = getattr(product, "delivery_info", "")
+    url = getattr(product, "url", "#")
+    image_url = getattr(product, "image_url", "")
+
     with st.container(border=True):
         # Product Card Anchor for styles.py to target
         st.markdown('<div class="product-card-anchor"></div>', unsafe_allow_html=True)
@@ -145,13 +145,17 @@ def render_product_card(product: Dict[str, Any], is_best_value: bool = False):
 
 def render_recommendation_section(recommendation: Dict[str, Any]):
     """Renders the AI recommendation card using a native Streamlit container and metrics."""
-    name = recommendation.get("name", "Unknown Product")
-    price = recommendation.get("price", 0.0)
-    rating = recommendation.get("rating", 0.0)
-    reviews = recommendation.get("reviews", 0)
-    why = recommendation.get("why", "Highly recommended based on your preferences.")
-    url = recommendation.get("url", "#")
-    source = recommendation.get("source", "Amazon")
+    name = getattr(recommendation, "name", "Unknown Product")
+    price = getattr(recommendation, "price", 0.0)
+    rating = getattr(recommendation, "rating", 0.0)
+    reviews = getattr(recommendation, "reviews", 0)
+    why = getattr(
+        recommendation,
+        "why",
+        "Highly recommended based on your preferences."
+    )
+    url = getattr(recommendation, "url", "#")
+    source = getattr(recommendation, "source", "Amazon")    
     
     with st.container(border=True):
         # Anchor tag to allow styles.py to apply the purple background styling
